@@ -24,4 +24,14 @@ urlpatterns = [
     # This path allows users to interact with a specific product design.
     # For example, /api/products/12/ would target the product with ID 12.
     path('products/<int:pk>/', views.ProductDetail.as_view(), name='product-detail'),
+
+    # --- Product Variant Endpoints ---
+
+    # This path handles the full inventory of product variations.
+    # Visit /api/variants/ to see everything in the warehouse.
+    path('variants/', views.ProductVariantList.as_view(), name='variant-list'),
+
+    # This path targets one specific variant in our warehouse.
+    # Use /api/variants/8/ to update the details of variation #8.
+    path('variants/<int:pk>/', views.ProductVariantDetail.as_view(), name='variant-detail'),
 ]

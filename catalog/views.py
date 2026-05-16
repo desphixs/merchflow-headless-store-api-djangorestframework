@@ -2,8 +2,8 @@ from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Category, Product
-from .serializers import CategorySerializer, ProductSerializer
+from .models import Category, Product, ProductVariant
+from .serializers import CategorySerializer, ProductSerializer, ProductVariantSerializer
 
 # --- Category Views ---
 
@@ -159,4 +159,67 @@ class ProductDetail(APIView):
         # Remove it from the database.
         product.delete()
         # Return a "204 No Content" status to show the deletion was successful.
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# --- Product Variant Views ---
+
+# 'ProductVariantList' manages the specific versions of our products (size/color/etc.).
+# This is the inventory warehouse where we see exactly what is in stock and add new stock items.
+class ProductVariantList(APIView):
+    # 'get' returns all product variants across the whole store.
+    def get(self, request):
+        # Fetch all specific variations from the database.
+        variants = ProductVariant.objects.all()
+        # Translate the collection into JSON.
+        serializer = ProductVariantSerializer(variants, many=True)
+        # Return the data.
+        return Response(serializer.data)
+
+    # 'post' creates a new variant for a product.
+    def post(self, request):
+        # Hand the new variant details to the translator.
+        serializer = ProductVariantSerializer(data=request.data)
+        # The serializer (the bouncer) will check our rules here!
+        # It will block the request if the price is negative.
+        if serializer.is_valid():
+            # If valid, save the item to our inventory.
+            serializer.save()
+            # Success!
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # Send back error messages if validation fails (like the negative price error).
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# 'ProductVariantDetail' is for looking at or changing one specific item in our inventory.
+# For example, updating the price of "Blue Medium Denim Jacket".
+class ProductVariantDetail(APIView):
+    # Security helper to find the variant or throw a 404.
+    def get_object(self, pk):
+        try:
+            return ProductVariant.objects.get(pk=pk)
+        except ProductVariant.DoesNotExist:
+            raise Http404
+
+    # 'get' returns details for one specific variant.
+    def get(self, request, pk):
+        variant = self.get_object(pk)
+        serializer = ProductVariantSerializer(variant)
+        return Response(serializer.data)
+
+    # 'put' updates a specific variant.
+    def put(self, request, pk):
+        # Find the existing variant.
+        variant = self.get_object(pk)
+        # Pass existing data and new data to the serializer.
+        serializer = ProductVariantSerializer(variant, data=request.data)
+        # The bouncer checks our price rules and ensures inventory_count isn't being manually changed.
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # 'delete' removes the variant from our catalog.
+    def delete(self, request, pk):
+        variant = self.get_object(pk)
+        variant.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
