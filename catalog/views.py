@@ -2,8 +2,10 @@ from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Category
-from .serializers import CategorySerializer
+from .models import Category, Product
+from .serializers import CategorySerializer, ProductSerializer
+
+# --- Category Views ---
 
 # 'CategoryList' handles requests for the entire collection of categories.
 # It's like the main reception desk at the store where you can ask to see all departments
@@ -83,4 +85,78 @@ class CategoryDetail(APIView):
         # Remove it from the database.
         category.delete()
         # Return a "204 No Content" status to show it's gone and there's nothing left to show.
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# --- Product Views ---
+
+# 'ProductList' works just like CategoryList, but for our inventory of products.
+# It's the catalog desk where you can browse every product we sell or add a new design to the shelves.
+class ProductList(APIView):
+    # 'get' returns all products currently in our system.
+    def get(self, request):
+        # We fetch every single product record.
+        products = Product.objects.all()
+        # We translate the list of products into JSON.
+        serializer = ProductSerializer(products, many=True)
+        # Send the data back with a success status.
+        return Response(serializer.data)
+
+    # 'post' allows us to add a brand new product to our catalog.
+    def post(self, request):
+        # We hand the incoming product details to our translator.
+        serializer = ProductSerializer(data=request.data)
+        # The serializer checks if the product has a name, description, and valid category.
+        if serializer.is_valid():
+            # If everything is correct, we save it to the database.
+            serializer.save()
+            # Confirm success with a "201 Created" message.
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # If something is missing or wrong, we let the user know.
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# 'ProductDetail' is the door to one specific product's data.
+# Whether you need to check the details of a "Denim Jacket" or update its description, this is where you go.
+class ProductDetail(APIView):
+    # This helper method ensures the product exists before we try to do anything with it.
+    def get_object(self, pk):
+        try:
+            # Try to find the product by its ID.
+            return Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            # If it's missing, we raise the 404 "Not Found" alarm.
+            raise Http404
+
+    # 'get' retrieves the details for one specific product.
+    def get(self, request, pk):
+        # Find the product.
+        product = self.get_object(pk)
+        # Translate it to JSON.
+        serializer = ProductSerializer(product)
+        # Send it back to the user.
+        return Response(serializer.data)
+
+    # 'put' lets us update the information for a specific product.
+    # Maybe the design changed or we want to move it to a different category.
+    def put(self, request, pk):
+        # Find the product we want to edit.
+        product = self.get_object(pk)
+        # Hand the old record and the new data to the serializer.
+        serializer = ProductSerializer(product, data=request.data)
+        # Check if the updates are valid.
+        if serializer.is_valid():
+            # Save the changes.
+            serializer.save()
+            # Return the updated product info.
+            return Response(serializer.data)
+        # Return error details if the update failed validation.
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # 'delete' removes the product design from our system forever.
+    def delete(self, request, pk):
+        # Find the product.
+        product = self.get_object(pk)
+        # Remove it from the database.
+        product.delete()
+        # Return a "204 No Content" status to show the deletion was successful.
         return Response(status=status.HTTP_204_NO_CONTENT)
